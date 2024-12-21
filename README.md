@@ -8,14 +8,14 @@ A bash script that synchronizes and processes vCard (.vcf) files between directo
 
 - One-time synchronization of .vcf files between directories
 - Automatic backup creation for existing files
+- Parallel processing for better performance
 - Visual lock indicator (🔒) added to contact names
 - Automatic timestamp updates
+- Cross-platform compatibility
 
 ## Prerequisites
 
-The script requires the following:
-
-- Bash shell
+The script requires only standard Unix utilities (awk, grep, etc.) that come pre-installed on most systems.
 
 ## Installation
 
@@ -46,7 +46,8 @@ The script will:
 2. Copy all .vcf files from source to destination
 3. Create backups of any existing files in the destination
 4. Process each file to add lock indicators and update timestamps
-5. Update/sync changed .vcf files on each subsequent script execution
+5. Process files in parallel for better performance
+6. Update/sync changed .vcf files on each subsequent script execution
 
 ## File Processing
 
@@ -62,6 +63,19 @@ For each .vcf file that doesn't already contain a lock indicator, the script wil
 The script automatically creates backups of existing files in the destination:
 - Backups are stored in the same directory as the original file
 - Backup files are named with timestamps (e.g., `contact.vcf.backup-20241219-143025`)
+
+## Performance
+
+- Processes multiple files in parallel (configurable number of concurrent jobs)
+- Skips already processed files
+- Uses efficient file processing with awk
+- Optimized for handling large numbers of files
+
+## Error Handling
+
+- Cleans up temporary files on exit
+- Provides detailed error messages
+- Maintains atomicity of file operations
 
 ## Limitations
 
