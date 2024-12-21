@@ -136,14 +136,6 @@ main() {
   echo "Starting sync..."
   
   # Use rsync to sync .vcf files
-  # Options explained:
-  # -a: archive mode (preserves permissions, timestamps, etc.)
-  # -v: verbose
-  # --backup: create backups of existing files
-  # --backup-dir: where to store backup files
-  # --suffix: append timestamp to backup files
-  # --include/--exclude: only sync .vcf files
-  # --prune-empty-dirs: don't create empty directories
   rsync -av \
     --backup \
     --suffix=".backup-$(date +%Y%m%d-%H%M%S)" \
