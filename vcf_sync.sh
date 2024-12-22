@@ -1,6 +1,7 @@
 #!/bin/bash
 #
-# VCF File Sync & Lock Script
+# VCF File Watch & Sync Script
+# Uses `inotify-tools` for file monitoring
 # Copyright (c) 2024 Kyle Affolder
 # Licensed under the MIT License. See LICENSE file in the project root
 # for full license information.
@@ -21,33 +22,55 @@ cleanup() {
 # Set up trap for cleanup
 trap cleanup EXIT INT TERM
 
-# Show usage information
-show_usage() {
-  cat << EOF
-Usage: $0 [options] <source_directory> <destination_directory>
-
-Syncs .vcf files from source to destination directory.
-
-Options:
-  -h, --help              Show this help message and exit
-  -p, --process           Process VCF files (add lock emoji and update timestamps)
-                          (If not specified, files will only be synced)
-
-Examples:
-  $0 ~/contacts ~/backup              # Sync files only
-  $0 -p ~/contacts ~/backup           # Sync and process files
-EOF
-}
-
-# Check if rsync is installed
-check_rsync() {
+# Check if required tools are installed
+check_dependencies() {
+  local missing_deps=()
+  
   if ! command -v rsync >/dev/null 2>&1; then
-    echo "Error: rsync is not installed. Please install it first."
-    echo "On macOS: brew install rsync"
-    echo "On Ubuntu/Debian: sudo apt-get install rsync"
-    echo "On RedHat/CentOS: sudo yum install rsync"
+    missing_deps+=("rsync")
+  fi
+  
+  if ! command -v inotifywait >/dev/null 2>&1; then
+    missing_deps+=("inotify-tools")
+  fi
+  
+  if [ ${#missing_deps[@]} -ne 0 ]; then
+    echo "Error: Missing required dependencies: ${missing_deps[*]}"
+    echo "Please install them using your package manager:"
+    echo "On Ubuntu/Debian:"
+    echo "  sudo apt-get install ${missing_deps[*]}"
+    echo "On RedHat/CentOS:"
+    echo "  sudo yum install ${missing_deps[*]}"
     exit 1
   fi
+}
+
+# Function to sync files
+sync_files() {
+  local source_dir="$1"
+  local dest_dir="$2"
+  local process_files="$3"
+  
+  echo "Syncing changes..."
+  
+  # Use rsync to sync .vcf files
+  rsync -av \
+    --backup \
+    --suffix=".backup-$(date +%Y%m%d-%H%M%S)" \
+    --include='*.vcf' \
+    --include='*/' \
+    --exclude='*' \
+    --prune-empty-dirs \
+    "${source_dir}/" "${dest_dir}/"
+    
+  # Process files if requested
+  if [ "$process_files" -eq 1 ]; then
+    echo "Processing changed files..."
+    find "$dest_dir" -type f -name "*.vcf" -print0 | \
+      xargs -0 -P "$MAX_CONCURRENT_JOBS" -I {} bash -c 'process_vcf_file "$@"' _ {}
+  fi
+  
+  echo "Sync complete."
 }
 
 # Process a single VCF file
@@ -82,9 +105,74 @@ process_vcf_file() {
   mv -f "$temp_file" "$file"
 }
 
+# Watch directory for changes using inotifywait
+watch_directory() {
+  local source_dir="$1"
+  local dest_dir="$2"
+  local process_files="$3"
+  
+  echo "Performing initial sync..."
+  sync_files "$source_dir" "$dest_dir" "$process_files"
+  
+  echo "Watching for changes..."
+  
+  # Use inotifywait to monitor for changes
+  # -m: monitor continuously
+  # -r: watch recursively
+  # -e: specify events to watch
+  # --format: specify the output format
+  inotifywait -m -r \
+    -e create -e modify -e moved_to \
+    --format '%w%f' \
+    --include '.*\.vcf$' \
+    "$source_dir" | while read -r changed_file; do
+      # Add a small delay to handle rapid successive changes
+      sleep 0.5
+      
+      # Only sync if the changed file still exists
+      # (handles cases where files are quickly deleted after creation)
+      if [ -f "$changed_file" ]; then
+        sync_files "$source_dir" "$dest_dir" "$process_files"
+      fi
+  done
+}
+
+# Show usage information
+show_usage() {
+  cat << EOF
+Usage: $0 [options] <source_directory> <destination_directory>
+
+Watches and syncs .vcf files from source to destination directory.
+Designed for Linux systems using inotify-tools.
+
+Options:
+  -h, --help              Show this help message and exit
+  -w, --watch             Watch for changes and sync continuously
+  -p, --process           Process VCF files (add lock emoji and update timestamps)
+                          If not specified, files will only be synced
+
+Examples:
+  $0 ~/contacts ~/backup              # Sync files once
+  $0 -w ~/contacts ~/backup           # Watch and sync files continuously
+  $0 -w -p ~/contacts ~/backup        # Watch, sync and process files continuously
+
+Required tools:
+  - rsync: For efficient file synchronization
+  - inotify-tools: For Linux file monitoring
+
+Installation:
+  Ubuntu/Debian:
+    sudo apt-get install rsync inotify-tools
+
+  RedHat/CentOS:
+    sudo yum install rsync inotify-tools
+EOF
+}
+
 # Main script
 main() {
   local PROCESS_FILES=0
+  local WATCH_MODE=0
   local SOURCE_DIR=""
   local DEST_DIR=""
 
@@ -94,6 +182,10 @@ main() {
       -h|--help)
         show_usage
         exit 0
+        ;;
+      -w|--watch)
+        WATCH_MODE=1
+        shift
         ;;
       -p|--process)
         PROCESS_FILES=1
@@ -114,9 +206,10 @@ main() {
     esac
   done
 
-  # Validate arguments
-  if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <source_directory> <destination_directory>" >&2
+  # Validate required arguments
+  if [ -z "$SOURCE_DIR" ] || [ -z "$DEST_DIR" ]; then
+    echo "Error: Source and destination directories are required" >&2
+    show_usage
     exit 1
   fi
 
@@ -126,39 +219,29 @@ main() {
     exit 1
   fi
 
-  # Check for rsync
-  check_rsync
-
   # Create destination if it doesn't exist
   mkdir -p "$DEST_DIR"
   mkdir -p "$TEMP_DIR"
-  
-  echo "Starting sync..."
-  
-  # Use rsync to sync .vcf files
-  rsync -av \
-    --backup \
-    --suffix=".backup-$(date +%Y%m%d-%H%M%S)" \
-    --include='*.vcf' \
-    --include='*/' \
-    --exclude='*' \
-    --prune-empty-dirs \
-    "${SOURCE_DIR}/" "${DEST_DIR}/"
 
-  echo "Sync complete."
-
-  # Process files if requested
-  if [ "$PROCESS_FILES" -eq 1 ]; then
-    echo "Processing files..."
-
-    # Process all .vcf files in parallel
-    find "$DEST_DIR" -type f -name "*.vcf" -print0 | \
-      xargs -0 -P "$MAX_CONCURRENT_JOBS" -I {} bash -c 'process_vcf_file "$@"' _ {}
-    
-    echo "Processing complete."
+  # Check dependencies only if watch mode is enabled
+  if [ "$WATCH_MODE" -eq 1 ]; then
+    check_dependencies
+  elif ! command -v rsync >/dev/null 2>&1; then
+    echo "Error: rsync is required for file synchronization"
+    echo "Please install rsync using your package manager:"
+    echo "  Ubuntu/Debian: sudo apt-get install rsync"
+    echo "  RedHat/CentOS: sudo yum install rsync"
+    exit 1
   fi
 
-  echo "All operations completed successfully"
+  # Perform initial sync
+  sync_files "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
+  
+  # Start watching if watch mode is enabled
+  if [ "$WATCH_MODE" -eq 1 ]; then
+    echo "Starting watch mode..."
+    watch_directory "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
+  fi
 }
 
 # Run main function

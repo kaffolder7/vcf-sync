@@ -2,36 +2,35 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A bash script that efficiently synchronizes vCard (.vcf) files between directories while adding visual lock indicators to contact names. Uses _rsync_ for efficient file synchronization and parallel processing for custom modifications.
+A bash script that efficiently synchronizes and processes vCard (.vcf) files between directories while adding visual lock indicators to contact names.
 
 ## Features
 
 - Efficient file synchronization using _rsync_
+- Real-time synchronization of .vcf files between directories
 - Automatic backup creation with timestamps
 - Visual lock indicator (🔒) added to contact names
 - Automatic timestamp updates
-- Parallel processing of files
-- Cross-platform compatibility
+- Parallel processing of files (for better performance)
 
 ## Prerequisites
 
 The script requires:
 
 - _rsync_ (pre-installed on most Unix systems)
-- Standard Unix utilities (awk, grep, etc.)
+- _inotify-tools_ (for file monitoring)
+- Standard Unix utilities (_awk_, _grep_, etc.)
 
-To install rsync if not present:
+To install _rsync_ and _inotify-tools_ if not present:
 
 ```bash
-# macOS
-brew install rsync
+# Ubuntu/Debian*
+sudo apt-get install rsync inotify-tools
 
-# Ubuntu/Debian
-sudo apt-get install rsync
-
-# RedHat/CentOS
-sudo yum install rsync
+# RedHat/CentOS*
+sudo yum install rsync inotify-tools
 ```
+_*Note: inotify-tools is a Linux kenel subsystem which provides APIs to to monitor filesystem events, therefore the `-w` / `--watch` functionality is only available on Linux systems._
 
 ## Installation
 
@@ -50,18 +49,32 @@ chmod +x vcf_sync.sh
 Run the script with source and destination directories as arguments:
 
 ```bash
-# Sync files only
-./vcf_sync.sh /path/to/source /path/to/destination
+# One-time sync only
+./vcf_sync.sh ~/path/to/source ~/path/to/destination
 
-# Sync and process files (add lock emoji and update timestamps)
-./vcf_sync.sh -p /path/to/source /path/to/destination
+# Watch and sync continuously
+./vcf_sync.sh -w ~/path/to/source ~/path/to/destination
+
+# Watch, sync and process files continuously
+./vcf_sync.sh -w -p ~/path/to/source ~/path/to/destination
+
+# Show help
+./vcf_sync.sh --help
 ```
 
+Options:
+- Without `-w`: Perform a single sync operation and exit
+- With `-w`: Start in watch mode and continuously sync changes
+- With `-p`: Process files (add lock emoji) regardless of watch mode
+
 The script will:
-1. Efficiently sync .vcf files from source to destination using rsync
+1. Efficiently sync .vcf files from source to destination directory using _rsync_
+      - Create the destination directory if it doesn't exist
 2. Create timestamped backups of modified files
 3. Process each file to add lock indicators and update timestamps
 4. Handle all operations in parallel for better performance
+5. Monitor for changes and sync automatically
+      - You can choose between one-time sync or continuous watching
 
 ## File Processing
 
@@ -95,9 +108,10 @@ The script automatically creates backups of existing files in the destination:
 ## Performance Features
 
 - _rsync_'s delta-transfer algorithm minimizes data transfer
-- Parallel processing of file modifications
+- Parallel processing of file modifications (configurable number of concurrent jobs)
 - Efficient file change detection
 - Skips already processed files
+- Uses efficient file processing with `awk`
 - Handles large numbers of files efficiently
 
 ## Error Handling
@@ -109,6 +123,7 @@ The script automatically creates backups of existing files in the destination:
 
 ## Limitations
 
+- Requires `inotify-tools` package
 - Only processes .vcf files
 
 ## Contributing
