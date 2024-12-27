@@ -36,7 +36,7 @@ _*Note: inotify-tools is a Linux kenel subsystem which provides APIs to to monit
 
 1. Download the script:
 ```bash
-wget https://your-script-location/vcf_sync.sh
+wget https://raw.githubusercontent.com/kaffolder7/vcf-sync/main/vcf_sync.sh
 ```
 
 2. Make it executable:
