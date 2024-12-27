@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # VCF File Watch & Sync Script
-# Uses `inotify-tools` for file monitoring
+# Uses `watchexec` for file monitoring
 # Copyright (c) 2024 Kyle Affolder
 # Licensed under the MIT License. See LICENSE file in the project root
 # for full license information.
