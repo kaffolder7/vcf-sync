@@ -21,25 +21,24 @@ The script requires:
 - _watchexec_ (for file monitoring)
 - Standard Unix utilities (_awk_, _grep_, etc.)
 
-To install _rsync_ and _watchexec_ if not present:
+#### To install _rsync_ and _watchexec_ if not present&mdash;
 
-```bash
-## macOS
-brew install watchexec
+- On macOS:
 
-## Linux via package manager & Cargo
+  ```bash
+  brew install rsync watchexec
+  ```
 
-  # Ubuntu/Debian*
-  sudo apt-get install rsync
+- On Linux:
+
+  ```bash
+  # Install rsync via package manager (usually pre-installed)
+  sudo apt-get install rsync  # Ubuntu/Debian
+  sudo yum install rsync      # RedHat/CentOS
+
+  # Install watchexec via cargo
   cargo install watchexec-cli
-
-  # RedHat/CentOS*
-  sudo yum install rsync
-  cargo install watchexec-cli
-
-# Or download the appropriate binary from:
-# https://github.com/watchexec/watchexec/releases
-```
+  ```
 
 ## Installation
 
