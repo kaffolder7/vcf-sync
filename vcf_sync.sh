@@ -30,17 +30,21 @@ check_dependencies() {
     missing_deps+=("rsync")
   fi
   
-  if ! command -v inotifywait >/dev/null 2>&1; then
-    missing_deps+=("inotify-tools")
+  if ! command -v watchexec >/dev/null 2>&1; then
+    missing_deps+=("watchexec")
   fi
   
   if [ ${#missing_deps[@]} -ne 0 ]; then
     echo "Error: Missing required dependencies: ${missing_deps[*]}"
     echo "Please install them using your package manager:"
+    echo "On macOS:"
+    echo "  brew install ${missing_deps[*]}"
     echo "On Ubuntu/Debian:"
-    echo "  sudo apt-get install ${missing_deps[*]}"
+    echo "  sudo apt-get install rsync"
+    echo "  cargo install watchexec-cli"
     echo "On RedHat/CentOS:"
-    echo "  sudo yum install ${missing_deps[*]}"
+    echo "  sudo yum install rsync"
+    echo "  cargo install watchexec-cli"
     exit 1
   fi
 }
@@ -116,25 +120,18 @@ watch_directory() {
   
   echo "Watching for changes..."
   
-  # Use inotifywait to monitor for changes
-  # -m: monitor continuously
-  # -r: watch recursively
-  # -e: specify events to watch
-  # --format: specify the output format
-  inotifywait -m -r \
-    -e create -e modify -e moved_to \
-    --format '%w%f' \
-    --include '.*\.vcf$' \
-    "$source_dir" | while read -r changed_file; do
-      # Add a small delay to handle rapid successive changes
-      sleep 0.5
-      
-      # Only sync if the changed file still exists
-      # (handles cases where files are quickly deleted after creation)
-      if [ -f "$changed_file" ]; then
-        sync_files "$source_dir" "$dest_dir" "$process_files"
-      fi
-  done
+  # Use watchexec to monitor for changes
+  # --no-shell prevents running in a shell which we don't need
+  # --debounce ensures we don't trigger multiple syncs for related events
+  # --watch-when-idle prevents running on startup
+  # --extensions limits monitoring to .vcf files
+  watchexec \
+    --no-shell \
+    --debounce 2000 \
+    --watch-when-idle \
+    --extensions vcf \
+    --watch "$source_dir" \
+    "$(command -v "$0") ${process_files:+-p} '$source_dir' '$dest_dir'"
 }
 
 # Show usage information
@@ -158,14 +155,15 @@ Examples:
 
 Required tools:
   - rsync: For efficient file synchronization
-  - inotify-tools: For Linux file monitoring
+  - watchexec: For cross-platform file monitoring
 
 Installation:
-  Ubuntu/Debian:
-    sudo apt-get install rsync inotify-tools
+  macOS:
+    brew install rsync watchexec
 
-  RedHat/CentOS:
-    sudo yum install rsync inotify-tools
+  Linux:
+    Install rsync via package manager
+    cargo install watchexec-cli
 EOF
 }
 
@@ -229,18 +227,24 @@ main() {
   elif ! command -v rsync >/dev/null 2>&1; then
     echo "Error: rsync is required for file synchronization"
     echo "Please install rsync using your package manager:"
+    echo "  macOS: brew install rsync"
     echo "  Ubuntu/Debian: sudo apt-get install rsync"
     echo "  RedHat/CentOS: sudo yum install rsync"
     exit 1
   fi
 
-  # Perform initial sync
-  sync_files "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
-  
-  # Start watching if watch mode is enabled
-  if [ "$WATCH_MODE" -eq 1 ]; then
-    echo "Starting watch mode..."
-    watch_directory "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
+  if [ -z "${WATCHEXEC_COMMON_PATH:-}" ]; then
+    # Perform initial sync
+    sync_files "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
+
+    # Start watching if watch mode is enabled
+    if [ "$WATCH_MODE" -eq 1 ]; then
+      echo "Starting watch mode..."
+      watch_directory "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
+    fi
+  else
+    # We're being called by watchexec, just do the sync
+    sync_files "$SOURCE_DIR" "$DEST_DIR" "$PROCESS_FILES"
   fi
 }
 

@@ -18,25 +18,34 @@ A bash script that efficiently synchronizes and processes vCard (.vcf) files bet
 The script requires:
 
 - _rsync_ (pre-installed on most Unix systems)
-- _inotify-tools_ (for file monitoring)
+- _watchexec_ (for file monitoring)
 - Standard Unix utilities (_awk_, _grep_, etc.)
 
-To install _rsync_ and _inotify-tools_ if not present:
+To install _rsync_ and _watchexec_ if not present:
 
 ```bash
-# Ubuntu/Debian*
-sudo apt-get install rsync inotify-tools
+## macOS
+brew install watchexec
 
-# RedHat/CentOS*
-sudo yum install rsync inotify-tools
+## Linux via package manager & Cargo
+
+  # Ubuntu/Debian*
+  sudo apt-get install rsync
+  cargo install watchexec-cli
+
+  # RedHat/CentOS*
+  sudo yum install rsync
+  cargo install watchexec-cli
+
+# Or download the appropriate binary from:
+# https://github.com/watchexec/watchexec/releases
 ```
-_*Note: inotify-tools is a Linux kenel subsystem which provides APIs to to monitor filesystem events, therefore the `-w` / `--watch` functionality is only available on Linux systems._
 
 ## Installation
 
 1. Download the script:
 ```bash
-wget https://your-script-location/vcf_sync.sh
+wget https://raw.githubusercontent.com/kaffolder7/vcf-sync/watchexec/vcf_sync.sh
 ```
 
 2. Make it executable:
@@ -111,7 +120,7 @@ The script automatically creates backups of existing files in the destination:
 - Parallel processing of file modifications (configurable number of concurrent jobs)
 - Efficient file change detection
 - Skips already processed files
-- Uses efficient file processing with `awk`
+- Uses efficient file processing with _awk_
 - Handles large numbers of files efficiently
 
 ## Error Handling
@@ -123,7 +132,7 @@ The script automatically creates backups of existing files in the destination:
 
 ## Limitations
 
-- Requires `inotify-tools` package
+- Requires _watchexec_ package
 - Only processes .vcf files
 
 ## Contributing
