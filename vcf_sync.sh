@@ -121,10 +121,6 @@ watch_directory() {
   echo "Watching for changes..."
   
   # Use watchexec to monitor for changes
-  # --no-shell prevents running in a shell which we don't need
-  # --debounce ensures we don't trigger multiple syncs for related events
-  # --watch-when-idle prevents running on startup
-  # --extensions limits monitoring to .vcf files
   watchexec \
     --no-shell \
     --debounce 2000 \
